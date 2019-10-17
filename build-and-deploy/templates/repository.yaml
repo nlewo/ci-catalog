@@ -1,0 +1,14 @@
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  namespace: {{ .Values.global.namespace }}
+  name: repository-{{ .Values.global.uid }}
+  annotations:
+    kapp.k14s.io/change-group: "ci/resources"
+spec:
+  type: git
+  params:
+  - name: revision
+    value: {{ .Values.global.revision }}
+  - name: url
+    value: {{ .Values.repository.url }}

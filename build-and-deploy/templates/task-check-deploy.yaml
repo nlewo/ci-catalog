@@ -1,0 +1,37 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  namespace: {{ .Values.global.namespace }}
+  name: deploy-using-kubectl
+  annotations:
+    kapp.k14s.io/change-group: "ci/resources"
+spec:
+  inputs:
+    resources:
+      - name: source
+        type: git
+      - name: image
+        type: image
+    params:
+      - name: path
+        type: string
+        description: Path to the manifest to apply
+  steps:
+    - name: check-if-image-tag-is-up-to-date
+      image: nixery.dev/shell/findutils/yq/jq/skopeo
+      command: ["bash"]
+      args:
+        - "-c"
+        # Ok, this is a bit magic:/
+        # We query the registry to get the digest of the image used in the deployment.
+        # This step fails if this digest associated to the tag is not equal to the digest of the image resource.
+        - "cat $(inputs.params.path) | yq -rs '.[0].spec.template.spec.containers[0].image' | xargs -I '{}' skopeo inspect docker://'{}' | jq -e '.Digest == \"$(inputs.resources.image.digest)\"'"
+    - name: run-kubectl
+      image: nixery.dev/shell/kubectl
+      command: ["kubectl"]
+      args:
+        - "apply"
+        - "-n"
+        - {{ .Values.global.namespace }}
+        - "-f"
+        - "$(inputs.params.path)"
