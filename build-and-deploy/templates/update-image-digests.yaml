@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1alpha1
 kind: Task
 metadata:
   name: update-image-digests
-  namespace: {{ .Values.global.namespace }}
+  namespace: {{ .Values.global.ci.namespace }}
   annotations:
     kapp.k14s.io/change-group: "ci/resources"
 spec:

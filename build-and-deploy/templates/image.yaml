@@ -1,8 +1,8 @@
 apiVersion: tekton.dev/v1alpha1
 kind: PipelineResource
 metadata:
-  namespace: {{ .Values.global.namespace }}
-  name: image-{{ .Values.global.uid }}
+  namespace: {{ .Values.global.ci.namespace }}
+  name: image-{{ .Values.global.ci.uid }}
   annotations:
     kapp.k14s.io/change-group: "ci/resources"
 spec:

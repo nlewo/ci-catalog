@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1alpha1
 kind: Task
 metadata:
-  namespace: {{ .Values.global.namespace }}
+  namespace: {{ .Values.global.ci.namespace }}
   name: deploy-using-kubectl
   annotations:
     kapp.k14s.io/change-group: "ci/resources"
@@ -32,6 +32,6 @@ spec:
       args:
         - "apply"
         - "-n"
-        - {{ .Values.global.namespace }}
+        - {{ .Values.global.ci.namespace }}
         - "-f"
         - "$(inputs.params.path)"
