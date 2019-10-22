@@ -11,10 +11,13 @@ spec:
   triggers:
     - name: ci-trigger
       binding:
-        name: github-push-triggerbinding
+        name: github-triggerbinding
       template:
         name: ci-pipeline-template
       interceptor:
+        header:
+          - name: X-Push-Branches-Only
+            value: "master"
         objectRef:
           apiVersion: v1
           kind: Service

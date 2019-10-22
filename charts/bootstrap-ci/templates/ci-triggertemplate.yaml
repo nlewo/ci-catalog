@@ -7,11 +7,11 @@ metadata:
   namespace: tekton-pipelines
 spec:
   params:
-    - name: eventBody
-    - name: eventHeaders
-    - name: repoURL
+    - name: githubEvent
     - name: repoName
-    - name: gitRevision
+    - name: repoURL
+    - name: repoRevision
+    - name: repoBranch
   resourcetemplates:
     # NOTE: Can be removed on next release (0.8.0) by using
     # resourceSpec instead of resourceRef in PipelineRun
@@ -28,11 +28,11 @@ spec:
         - name: url
           value: $(params.repoURL)
         - name: revision
-          value: $(params.gitRevision)
+          value: $(params.repoRevision)
     - apiVersion: tekton.dev/v1alpha1
       kind: PipelineRun
       metadata:
-        name: ci-pipeline-run-$(params.repoName)-$(uid)
+        name: ci-pipeline-run-$(params.repoName)-$(params.repoBranch)-$(uid)
         labels:
           generatedBy: "ci-trigger"
         namespace: tekton-pipelines
@@ -41,14 +41,14 @@ spec:
         pipelineRef:
           name: ci-pipeline
         params:
-          - name: eventBody
-            value: $(params.eventBody)
-          - name: eventHeaders
-            value: $(params.eventHeaders)
-          - name: runUID
-            value: $(uid)
           - name: repoName
             value: $(params.repoName)
+          - name: repoURL
+            value: $(params.repoURL)
+          - name: repoRevision
+            value: $(params.repoRevision)
+          - name: repoBranch
+            value: $(params.repoBranch)
         resources:
           - name: project-repo
             resourceRef:

@@ -18,7 +18,7 @@ metadata:
   name: tekton-github-interceptor
   namespace: tekton-pipelines
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: tekton-github-interceptor
@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: validate
-          image: gcr.io/tekton-releases/github.com/tektoncd/triggers/cmd/gh-validate@sha256:98e4f1ac48fbad76f51d5eae68147c9800dc4c9a2e95a60532c92fc4c8d204b1
+          image: eonpatapon/gh-validate-dec17587c0f33a3e2296ef6cc3b3e232
           env:
             - name: GITHUB_SECRET_TOKEN
               valueFrom:

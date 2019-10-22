@@ -3,19 +3,17 @@ kind: TriggerBinding
 metadata:
   annotations:
     kapp.k14s.io/change-group: "tekton.dev/ci-eventlistener"
-  name: github-push-triggerbinding
+  name: github-triggerbinding
   namespace: tekton-pipelines
 spec:
   params:
-    - name: eventBody
-      value: $(body)
-    - name: eventHeaders
-      value: $(header)
     - name: githubEvent
-      value: $(header.X-Github-Event)
+      value: $(body.eventType)
     - name: repoName
       value: $(body.repository.name)
     - name: repoURL
-      value: $(body.repository.clone_url)
-    - name: gitRevision
-      value: $(body.head_commit.id)
+      value: $(body.repository.url)
+    - name: repoRevision
+      value: $(body.repository.revision)
+    - name: repoBranch
+      value: $(body.repository.branch)

@@ -8,34 +8,16 @@ metadata:
 spec:
   inputs:
     params:
-      - name: eventBody
-        type: string
-        description: JSON event payload received by the webhook
-      - name: runUID
-        type: string
-        description: Unique identifier of the CI run
       - name: repoName
         type: string
         description: Repository name
+      - name: repoBranch
+        type: string
+        description: Repository branch
     resources:
       - name: project-repo
         type: git
-  stepTemplate:
-    env:
-      - name: EVENT_BODY
-        value: $(inputs.params.eventBody)
-      - name: RUN_UID
-        value: $(inputs.params.runUID)
   steps:
-    # - name: validate-config
-    #   image: nixery.dev/shell
-    #   command: ["bash"]
-    #   workingDir: /workspace/project-repo
-    #   args:
-    #     - "-ec"
-    #     - |
-    #       ls -la
-    #       [ ! -d .tekton ] && exit 1
     - name: template-config
       image: nixery.dev/shell/jq/yq/coreutils/kubernetes-helm/kubectl
       command: ["bash"]
@@ -43,8 +25,18 @@ spec:
       args:
         - "-ec"
         - |
-          export NAMESPACE=$(echo "$EVENT_BODY" | jq -r '[(.repository.name), (.ref | split("/") | last)] | join("-")')
-          echo "$EVENT_BODY" | jq '{global: {ci: {namespace: env.NAMESPACE, repository: {name: .repository.name, revision: .head_commit.id, url: .repository.clone_url}, uid: env.RUN_UID}}}' | yq . -y > values-global.yaml
+          export RUN_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n1)
+          export NAMESPACE=$(inputs.params.repoName)-$(inputs.params.repoBranch)
+          cat <<EOF > values-global.yaml
+          global:
+            ci:
+              namespace: $(inputs.params.repoName)-$(inputs.params.repoBranch)
+              repository:
+                name: $(inputs.params.repoName)
+                revision: $(inputs.resources.project-repo.revision)
+                url: $(inputs.resources.project-repo.url)
+              uid: ${RUN_ID}
+          EOF
           echo "# CI template values:"
           cat values-global.yaml
           echo "# Fetching secrets secrets-$(inputs.params.repoName) namespace"
@@ -77,18 +69,12 @@ metadata:
   namespace: tekton-pipelines
 spec:
   params:
-    - name: eventBody
-      type: string
-      description: JSON event payload received by the webhook
-    - name: eventHeaders
-      type: string
-      description: JSON event headers received by the webhook
-    - name: runUID
-      type: string
-      description: Unique identifier of the CI run
     - name: repoName
       type: string
       description: Repository name
+    - name: repoBranch
+      type: string
+      description: Repository branch
   resources:
     - name: project-repo
       type: git
@@ -97,12 +83,10 @@ spec:
       taskRef:
         name: ci-apply-configuration
       params:
-        - name: eventBody
-          value: $(params.eventBody)
-        - name: runUID
-          value: $(params.runUID)
         - name: repoName
           value: $(params.repoName)
+        - name: repoBranch
+          value: $(params.repoBranch)
       resources:
         inputs:
           - name: project-repo
