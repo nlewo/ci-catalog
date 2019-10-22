@@ -1,0 +1,39 @@
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/triggers"
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/ci-eventlistener"
+  name: tekton-ci
+  namespace: tekton-pipelines
+spec:
+  serviceAccountName: tekton-ci-admin
+  triggers:
+    - name: ci-trigger
+      binding:
+        name: github-push-triggerbinding
+      template:
+        name: ci-pipeline-template
+      interceptor:
+        objectRef:
+          apiVersion: v1
+          kind: Service
+          name: tekton-github-interceptor
+          namespace: tekton-pipelines
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: el-ci-ingress
+  namespace: tekton-pipelines
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: {{ .Values.github.webhookHost }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: el-tekton-ci
+              servicePort: 8080

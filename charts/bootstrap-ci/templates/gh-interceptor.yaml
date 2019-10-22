@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: tekton-github-interceptor
+  namespace: tekton-pipelines
+spec:
+  type: ClusterIP
+  selector:
+    app: tekton-github-interceptor
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tekton-github-interceptor
+  namespace: tekton-pipelines
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tekton-github-interceptor
+  template:
+    metadata:
+      labels:
+        app: tekton-github-interceptor
+    spec:
+      containers:
+        - name: validate
+          image: gcr.io/tekton-releases/github.com/tektoncd/triggers/cmd/gh-validate@sha256:98e4f1ac48fbad76f51d5eae68147c9800dc4c9a2e95a60532c92fc4c8d204b1
+          env:
+            - name: GITHUB_SECRET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  namespace: tekton-pipelines
+                  name: gh-webhook-secret
+                  key: secret

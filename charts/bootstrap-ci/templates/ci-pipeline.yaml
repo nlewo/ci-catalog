@@ -1,0 +1,109 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/pipelines"
+  name: ci-apply-configuration
+  namespace: tekton-pipelines
+spec:
+  inputs:
+    params:
+      - name: eventBody
+        type: string
+        description: JSON event payload received by the webhook
+      - name: runUID
+        type: string
+        description: Unique identifier of the CI run
+      - name: repoName
+        type: string
+        description: Repository name
+    resources:
+      - name: project-repo
+        type: git
+  stepTemplate:
+    env:
+      - name: EVENT_BODY
+        value: $(inputs.params.eventBody)
+      - name: RUN_UID
+        value: $(inputs.params.runUID)
+  steps:
+    # - name: validate-config
+    #   image: nixery.dev/shell
+    #   command: ["bash"]
+    #   workingDir: /workspace/project-repo
+    #   args:
+    #     - "-ec"
+    #     - |
+    #       ls -la
+    #       [ ! -d .tekton ] && exit 1
+    - name: template-config
+      image: nixery.dev/shell/jq/yq/coreutils/kubernetes-helm/kubectl
+      command: ["bash"]
+      workingDir: /workspace/project-repo/.tekton
+      args:
+        - "-ec"
+        - |
+          export NAMESPACE=$(echo "$EVENT_BODY" | jq -r '[(.repository.name), (.ref | split("/") | last)] | join("-")')
+          echo "$EVENT_BODY" | jq '{global: {ci: {namespace: env.NAMESPACE, repository: {name: .repository.name, revision: .head_commit.id, url: .repository.clone_url}, uid: env.RUN_UID}}}' | yq . -y > values-global.yaml
+          echo "# CI template values:"
+          cat values-global.yaml
+          echo "# Fetching secrets secrets-$(inputs.params.repoName) namespace"
+          kubectl get -o yaml secrets -n secrets-$(inputs.params.repoName)  | yq -s -y '.[].items | map(select(.kind=="Secret") | {"\(.metadata.name)": .data}) | add | {global: {ci: {secrets: .}}}' > values-secrets-global.yaml
+          cat values-secrets-global.yaml
+          echo "# Rendering template"
+          helm template . --values=values-global.yaml --values=values-secrets-global.yaml > rendered.yaml
+          cat rendered.yaml
+          kubectl create namespace $NAMESPACE || true
+          kubectl create rolebinding serviceaccounts-edit \
+            --clusterrole=edit \
+            --group=system:serviceaccounts:$NAMESPACE \
+            --namespace=$NAMESPACE || true
+    - name: deploy-config
+      image: eonpatapon/kapp
+      command: ["kapp"]
+      workingDir: /workspace/project-repo/.tekton
+      args:
+        - deploy
+        - -a
+        - $(inputs.params.repoName)
+        - -f
+        - rendered.yaml
+        - -y
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: ci-pipeline
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: eventBody
+      type: string
+      description: JSON event payload received by the webhook
+    - name: eventHeaders
+      type: string
+      description: JSON event headers received by the webhook
+    - name: runUID
+      type: string
+      description: Unique identifier of the CI run
+    - name: repoName
+      type: string
+      description: Repository name
+  resources:
+    - name: project-repo
+      type: git
+  tasks:
+    - name: apply-configuration
+      taskRef:
+        name: ci-apply-configuration
+      params:
+        - name: eventBody
+          value: $(params.eventBody)
+        - name: runUID
+          value: $(params.runUID)
+        - name: repoName
+          value: $(params.repoName)
+      resources:
+        inputs:
+          - name: project-repo
+            resource: project-repo

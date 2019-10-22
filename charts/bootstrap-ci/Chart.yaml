@@ -1,0 +1,4 @@
+apiVersion: v1
+name: bootstrap-ci
+version: 0.1.0
+appVersion: 0.7.0

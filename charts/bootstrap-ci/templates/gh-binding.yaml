@@ -1,0 +1,15 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  name: github-push-triggerbinding
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: eventBody
+      value: $(body)
+    - name: eventHeaders
+      value: $(header)
+    - name: repoURL
+      value: $(body.repository.clone_url)
+    - name: gitRevision
+      value: $(body.head_commit.id)

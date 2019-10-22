@@ -1,0 +1,5 @@
+github:
+  webhookSecret: 12345 # secret for github webhooks
+  webhookHost: github-events-84-39-53-90.nip.io
+dashboard:
+  host: ci-board-84-39-53-90.nip.io

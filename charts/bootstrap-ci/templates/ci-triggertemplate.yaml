@@ -1,0 +1,55 @@
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  annotations:
+    kapp.k14s.io/change-group: "tekton.dev/ci-eventlistener"
+  name: ci-pipeline-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: eventBody
+    - name: eventHeaders
+    - name: repoURL
+    - name: repoName
+    - name: gitRevision
+  resourcetemplates:
+    # NOTE: Can be removed on next release (0.8.0) by using
+    # resourceSpec instead of resourceRef in PipelineRun
+    - apiVersion: tekton.dev/v1alpha1
+      kind: PipelineResource
+      metadata:
+        name: git-$(params.repoName)-$(uid)
+        labels:
+          generatedBy: "ci-trigger"
+        namespace: tekton-pipelines
+      spec:
+        type: git
+        params:
+        - name: url
+          value: $(params.repoURL)
+        - name: revision
+          value: $(params.gitRevision)
+    - apiVersion: tekton.dev/v1alpha1
+      kind: PipelineRun
+      metadata:
+        name: ci-pipeline-run-$(params.repoName)-$(uid)
+        labels:
+          generatedBy: "ci-trigger"
+        namespace: tekton-pipelines
+      spec:
+        serviceAccount: tekton-ci-admin
+        pipelineRef:
+          name: ci-pipeline
+        params:
+          - name: eventBody
+            value: $(params.eventBody)
+          - name: eventHeaders
+            value: $(params.eventHeaders)
+          - name: runUID
+            value: $(uid)
+          - name: repoName
+            value: $(params.repoName)
+        resources:
+          - name: project-repo
+            resourceRef:
+              name: git-$(params.repoName)-$(uid)
