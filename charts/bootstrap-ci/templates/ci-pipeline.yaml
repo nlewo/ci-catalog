@@ -3,7 +3,7 @@ kind: Task
 metadata:
   annotations:
     kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/pipelines"
-  name: ci-apply-configuration
+  name: ci-apply-user-pipeline
   namespace: tekton-pipelines
 spec:
   inputs:
@@ -18,7 +18,7 @@ spec:
       - name: project-repo
         type: git
   steps:
-    - name: template-config
+    - name: template-user-pipeline
       image: nixery.dev/shell/jq/yq/coreutils/kubernetes-helm/kubectl
       command: ["bash"]
       workingDir: /workspace/project-repo/.tekton
@@ -50,14 +50,16 @@ spec:
             --clusterrole=edit \
             --group=system:serviceaccounts:$NAMESPACE \
             --namespace=$NAMESPACE || true
-    - name: deploy-config
+    - name: deploy-user-pipeline
       image: eonpatapon/kapp
       command: ["kapp"]
       workingDir: /workspace/project-repo/.tekton
       args:
         - deploy
         - -a
-        - $(inputs.params.repoName)
+        - $(inputs.params.repoName)-$(inputs.params.repoBranch)
+        - --into-ns
+        - $(inputs.params.repoName)-$(inputs.params.repoBranch)
         - -f
         - rendered.yaml
         - -y
@@ -79,9 +81,9 @@ spec:
     - name: project-repo
       type: git
   tasks:
-    - name: apply-configuration
+    - name: ci-apply-user-pipeline
       taskRef:
-        name: ci-apply-configuration
+        name: ci-apply-user-pipeline
       params:
         - name: repoName
           value: $(params.repoName)
