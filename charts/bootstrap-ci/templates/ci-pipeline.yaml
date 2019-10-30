@@ -26,13 +26,12 @@ spec:
         - "-ec"
         - |
           export RUN_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n1)
-          export NAMESPACE=$(inputs.params.repoName)-$(inputs.params.repoBranch)
           cat <<EOF > values-global.yaml
           global:
             ci:
-              namespace: $(inputs.params.repoName)-$(inputs.params.repoBranch)
               repository:
                 name: $(inputs.params.repoName)
+                branch: $(inputs.params.repoBranch)
                 revision: $(inputs.resources.project-repo.revision)
                 url: $(inputs.resources.project-repo.url)
               uid: ${RUN_ID}
@@ -45,6 +44,7 @@ spec:
           echo "# Rendering template"
           helm template . --values=values-global.yaml --values=values-secrets-global.yaml > rendered.yaml
           cat rendered.yaml
+          export NAMESPACE=pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
           kubectl create namespace $NAMESPACE || true
           kubectl create rolebinding serviceaccounts-edit \
             --clusterrole=edit \
@@ -57,9 +57,9 @@ spec:
       args:
         - deploy
         - -a
-        - $(inputs.params.repoName)-$(inputs.params.repoBranch)
+        - pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
         - --into-ns
-        - $(inputs.params.repoName)-$(inputs.params.repoBranch)
+        - pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
         - -f
         - rendered.yaml
         - -y
