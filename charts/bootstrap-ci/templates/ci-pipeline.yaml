@@ -3,93 +3,90 @@ kind: Task
 metadata:
   annotations:
     kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/pipelines"
-  name: ci-apply-user-pipeline
+  name: ci-stage1
   namespace: tekton-pipelines
 spec:
   inputs:
     params:
+      - name: event
+        type: string
       - name: repoName
         type: string
         description: Repository name
       - name: repoBranch
         type: string
         description: Repository branch
+  steps:
+    - name: create-pipeline-ns
+      image: nixery.dev/shell/kubectl/yq/jq
+      command: ["bash"]
+      args:
+        - "-ec"
+        - |
+          export NAMESPACE=pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
+          echo "# Creating namespace $NAMESPACE"
+          kubectl create namespace $NAMESPACE || true
+          kubectl create rolebinding serviceaccounts-edit \
+            --clusterrole=edit \
+            --group=system:serviceaccounts:$NAMESPACE \
+            --namespace=$NAMESPACE || true
+          echo "# Fetching secrets from secrets-$(inputs.params.repoName) namespace"
+          kubectl get -o json secrets -n secrets-$(inputs.params.repoName) | jq -s '.[].items | map(select(.kind == "Secret") | {"\(.metadata.name)": .data}) | add | {secrets: .}' > secrets.json
+          echo '$(inputs.params.event)' > event.json
+          cat event.json secrets.json | jq -s 'add | . * {namespace: env.NAMESPACE}' > trigger.json
+    - name: trigger-pipeline
+      image: nixery.dev/curl
+      command: ["curl"]
+      args:
+        - -v
+        - -H
+        - "Content-Type: application/json"
+        - -d
+        - "@trigger.json"
+        - http://el-internal-tekton-ci:8080
+---
+apiVersion: tekton.dev/v1alpha1
+kind: ClusterTask
+metadata:
+  annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/pipelines"
+  name: ci-stage2
+  namespace: tekton-pipelines
+spec:
+  inputs:
+    params:
+      - name: event
+        type: string
+      - name: namespace
+        type: string
     resources:
       - name: project-repo
         type: git
   steps:
     - name: template-user-pipeline
-      image: nixery.dev/shell/jq/yq/coreutils/kubernetes-helm/kubectl
+      image: nixery.dev/shell/yq/coreutils/kubernetes-helm
       command: ["bash"]
       workingDir: /workspace/project-repo/.tekton
       args:
         - "-ec"
         - |
           export RUN_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n1)
-          cat <<EOF > values-global.yaml
-          global:
-            ci:
-              repository:
-                name: $(inputs.params.repoName)
-                branch: $(inputs.params.repoBranch)
-                revision: $(inputs.resources.project-repo.revision)
-                url: $(inputs.resources.project-repo.url)
-              uid: ${RUN_ID}
-          EOF
+          echo '$(inputs.params.event)' | yq -y '{global: {ci: .}} * {global: {ci: {uid: env.RUN_ID}}}' > values-global.yaml
           echo "# CI template values:"
           cat values-global.yaml
-          echo "# Fetching secrets secrets-$(inputs.params.repoName) namespace"
-          kubectl get -o yaml secrets -n secrets-$(inputs.params.repoName)  | yq -s -y '.[].items | map(select(.kind=="Secret") | {"\(.metadata.name)": .data}) | add | {global: {ci: {secrets: .}}}' > values-secrets-global.yaml
-          cat values-secrets-global.yaml
-          echo "# Rendering template"
-          helm template . --values=values-global.yaml --values=values-secrets-global.yaml > rendered.yaml
+          echo "# Rendered template:"
+          helm template . --values=values-global.yaml > rendered.yaml
           cat rendered.yaml
-          export NAMESPACE=pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
-          kubectl create namespace $NAMESPACE || true
-          kubectl create rolebinding serviceaccounts-edit \
-            --clusterrole=edit \
-            --group=system:serviceaccounts:$NAMESPACE \
-            --namespace=$NAMESPACE || true
     - name: deploy-user-pipeline
       image: eonpatapon/kapp
       command: ["kapp"]
       workingDir: /workspace/project-repo/.tekton
       args:
         - deploy
+        - -n
+        - $(inputs.params.namespace)
         - -a
-        - pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
-        - --into-ns
-        - pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
+        - $(inputs.params.namespace)
         - -f
         - rendered.yaml
         - -y
----
-apiVersion: tekton.dev/v1alpha1
-kind: Pipeline
-metadata:
-  name: ci-pipeline
-  namespace: tekton-pipelines
-spec:
-  params:
-    - name: repoName
-      type: string
-      description: Repository name
-    - name: repoBranch
-      type: string
-      description: Repository branch
-  resources:
-    - name: project-repo
-      type: git
-  tasks:
-    - name: ci-apply-user-pipeline
-      taskRef:
-        name: ci-apply-user-pipeline
-      params:
-        - name: repoName
-          value: $(params.repoName)
-        - name: repoBranch
-          value: $(params.repoBranch)
-      resources:
-        inputs:
-          - name: project-repo
-            resource: project-repo

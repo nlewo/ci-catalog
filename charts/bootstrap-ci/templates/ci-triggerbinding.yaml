@@ -2,18 +2,34 @@ apiVersion: tekton.dev/v1alpha1
 kind: TriggerBinding
 metadata:
   annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/triggers"
     kapp.k14s.io/change-group: "tekton.dev/ci-eventlistener"
   name: github-triggerbinding
   namespace: tekton-pipelines
 spec:
   params:
-    - name: githubEvent
-      value: $(body.eventType)
+    - name: event
+      value: $(body)
     - name: repoName
       value: $(body.repository.name)
+    - name: repoBranch
+      value: $(body.repository.branch)
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerBinding
+metadata:
+  annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/triggers"
+    kapp.k14s.io/change-group: "tekton.dev/ci-eventlistener"
+  name: internal-triggerbinding
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: event
+      value: $(body)
+    - name: namespace
+      value: $(body.namespace)
     - name: repoURL
       value: $(body.repository.url)
     - name: repoRevision
       value: $(body.repository.revision)
-    - name: repoBranch
-      value: $(body.repository.branch)

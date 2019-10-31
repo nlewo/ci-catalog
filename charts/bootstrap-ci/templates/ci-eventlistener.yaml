@@ -4,7 +4,7 @@ metadata:
   annotations:
     kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/triggers"
     kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/ci-eventlistener"
-  name: tekton-ci
+  name: external-tekton-ci
   namespace: tekton-pipelines
 spec:
   serviceAccountName: tekton-ci-admin
@@ -13,7 +13,7 @@ spec:
       binding:
         name: github-triggerbinding
       template:
-        name: ci-pipeline-template
+        name: ci-template-stage1
       interceptor:
         header:
           - name: X-Push-Branches-Only
@@ -38,5 +38,22 @@ spec:
         paths:
           - path: /
             backend:
-              serviceName: el-tekton-ci
+              serviceName: el-external-tekton-ci
               servicePort: 8080
+---
+apiVersion: tekton.dev/v1alpha1
+kind: EventListener
+metadata:
+  annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/triggers"
+    kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/ci-eventlistener"
+  name: internal-tekton-ci
+  namespace: tekton-pipelines
+spec:
+  serviceAccountName: tekton-ci-admin
+  triggers:
+    - name: ci-trigger
+      binding:
+        name: internal-triggerbinding
+      template:
+        name: ci-template-stage2

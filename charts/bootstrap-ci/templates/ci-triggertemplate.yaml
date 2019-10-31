@@ -3,53 +3,71 @@ kind: TriggerTemplate
 metadata:
   annotations:
     kapp.k14s.io/change-group: "tekton.dev/ci-eventlistener"
-  name: ci-pipeline-template
+  name: ci-template-stage1
   namespace: tekton-pipelines
 spec:
   params:
-    - name: githubEvent
+    - name: event
     - name: repoName
-    - name: repoURL
-    - name: repoRevision
     - name: repoBranch
   resourcetemplates:
-    # NOTE: Can be removed on next release (0.8.0) by using
-    # resourceSpec instead of resourceRef in PipelineRun
     - apiVersion: tekton.dev/v1alpha1
-      kind: PipelineResource
+      kind: TaskRun
       metadata:
-        name: git-$(params.repoName)-$(uid)
-        labels:
-          generatedBy: "ci-trigger"
-        namespace: tekton-pipelines
-      spec:
-        type: git
-        params:
-        - name: url
-          value: $(params.repoURL)
-        - name: revision
-          value: $(params.repoRevision)
-    - apiVersion: tekton.dev/v1alpha1
-      kind: PipelineRun
-      metadata:
-        name: ci-pipeline-run-$(params.repoName)-$(params.repoBranch)-$(uid)
+        name: ci-stage1-run-$(params.repoName)-$(params.repoBranch)-$(uid)
         labels:
           generatedBy: "ci-trigger"
         namespace: tekton-pipelines
       spec:
         serviceAccount: tekton-ci-admin
-        pipelineRef:
-          name: ci-pipeline
-        params:
-          - name: repoName
-            value: $(params.repoName)
-          - name: repoURL
-            value: $(params.repoURL)
-          - name: repoRevision
-            value: $(params.repoRevision)
-          - name: repoBranch
-            value: $(params.repoBranch)
-        resources:
-          - name: project-repo
-            resourceRef:
-              name: git-$(params.repoName)-$(uid)
+        taskRef:
+          name: ci-stage1
+        inputs:
+          params:
+            - name: event
+              value: $(params.event)
+            - name: repoName
+              value: $(params.repoName)
+            - name: repoBranch
+              value: $(params.repoBranch)
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TriggerTemplate
+metadata:
+  annotations:
+    kapp.k14s.io/change-group: "tekton.dev/ci-eventlistener"
+  name: ci-template-stage2
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: event
+    - name: namespace
+    - name: repoURL
+    - name: repoRevision
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1alpha1
+      kind: TaskRun
+      metadata:
+        name: ci-stage2-run-$(uid)
+        labels:
+          generatedBy: "ci-trigger"
+        namespace: $(params.namespace)
+      spec:
+        taskRef:
+          name: ci-stage2
+          kind: ClusterTask
+        inputs:
+          params:
+            - name: event
+              value: $(params.event)
+            - name: namespace
+              value: $(params.namespace)
+          resources:
+            - name: project-repo
+              resourceSpec:
+                type: git
+                params:
+                - name: url
+                  value: $(params.repoURL)
+                - name: revision
+                  value: $(params.repoRevision)
