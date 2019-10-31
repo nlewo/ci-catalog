@@ -10,6 +10,8 @@ spec:
   params:
     - name: event
       value: $(body)
+    - name: eventType
+      value: $(body.eventType)
     - name: repoName
       value: $(body.repository.name)
     - name: repoBranch
@@ -27,9 +29,17 @@ spec:
   params:
     - name: event
       value: $(body)
+    - name: eventType
+      value: $(body.global.ci.eventType)
     - name: namespace
-      value: $(body.namespace)
+      value: $(body.global.ci.namespace)
+    - name: uid
+      value: $(body.global.ci.uid)
     - name: repoURL
-      value: $(body.repository.url)
+      value: $(body.global.ci.repository.url)
     - name: repoRevision
-      value: $(body.repository.revision)
+      value: $(body.global.ci.repository.revision)
+    - name: repoName
+      value: $(body.global.ci.repository.name)
+    - name: repoBranch
+      value: $(body.global.ci.repository.branch)

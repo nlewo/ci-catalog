@@ -10,6 +10,8 @@ spec:
     params:
       - name: event
         type: string
+      - name: eventType
+        type: string
       - name: repoName
         type: string
         description: Repository name
@@ -23,17 +25,29 @@ spec:
       args:
         - "-ec"
         - |
+          export RUN_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n1)
           export NAMESPACE=pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
           echo "# Creating namespace $NAMESPACE"
           kubectl create namespace $NAMESPACE || true
-          kubectl create rolebinding serviceaccounts-edit \
-            --clusterrole=edit \
-            --group=system:serviceaccounts:$NAMESPACE \
-            --namespace=$NAMESPACE || true
+          if [ "$(inputs.params.eventType)" == "pull_request" ]; then
+            echo "# Creating rolebinding edit for $NAMESPACE"
+            kubectl create rolebinding pr-tekton-pipeline \
+              --clusterrole=edit \
+              --group=system:serviceaccounts:$NAMESPACE \
+              --namespace=$NAMESPACE || true
+          else
+            echo "# Creating clusterrolebinding edit for $NAMESPACE"
+            kubectl create clusterrolebinding tekton-pipeline \
+              --clusterrole=edit \
+              --group=system:serviceaccounts:$NAMESPACE \
+              --namespace=$NAMESPACE || true
+          fi
           echo "# Fetching secrets from secrets-$(inputs.params.repoName) namespace"
           kubectl get -o json secrets -n secrets-$(inputs.params.repoName) | jq -s '.[].items | map(select(.kind == "Secret") | {"\(.metadata.name)": .data}) | add | {secrets: .}' > secrets.json
           echo '$(inputs.params.event)' > event.json
-          cat event.json secrets.json | jq -s 'add | . * {namespace: env.NAMESPACE}' > trigger.json
+          cat event.json secrets.json | jq -s 'add | {global: {ci: .}} * {global: {ci: {namespace: env.NAMESPACE, uid: env.RUN_ID}}}' > trigger.json
+          echo "# Trigger user pipeline with event: "
+          cat trigger.json
     - name: trigger-pipeline
       image: nixery.dev/curl
       command: ["curl"]
@@ -57,6 +71,8 @@ spec:
     params:
       - name: event
         type: string
+      - name: uid
+        type: string
       - name: namespace
         type: string
     resources:
@@ -64,19 +80,21 @@ spec:
         type: git
   steps:
     - name: template-user-pipeline
-      image: nixery.dev/shell/yq/coreutils/kubernetes-helm
+      image: nixery.dev/shell/yq/coreutils/kubernetes-helm/kubectl
       command: ["bash"]
       workingDir: /workspace/project-repo/.tekton
       args:
         - "-ec"
         - |
-          export RUN_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n1)
-          echo '$(inputs.params.event)' | yq -y '{global: {ci: .}} * {global: {ci: {uid: env.RUN_ID}}}' > values-global.yaml
+          echo '$(inputs.params.event)' | yq -y . > values-global.yaml
           echo "# CI template values:"
           cat values-global.yaml
           echo "# Rendered template:"
           helm template . --values=values-global.yaml > rendered.yaml
           cat rendered.yaml
+          echo "# Create configmap ci-context-$(inputs.params.uid)"
+          yq -y '.global.ci | with_entries(select(.key|contains("secrets")|not)) | {global: {ci: .}}' values-global.yaml > context
+          kubectl create configmap ci-context-$(inputs.params.uid) --from-file=context
     - name: deploy-user-pipeline
       image: eonpatapon/kapp
       command: ["kapp"]
@@ -86,6 +104,8 @@ spec:
         - -n
         - $(inputs.params.namespace)
         - -a
+        - pipeline
+        - --into-ns
         - $(inputs.params.namespace)
         - -f
         - rendered.yaml
