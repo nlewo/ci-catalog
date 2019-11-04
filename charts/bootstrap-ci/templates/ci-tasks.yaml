@@ -86,15 +86,14 @@ spec:
       args:
         - "-ec"
         - |
-          echo '$(inputs.params.event)' | yq -y . > values-global.yaml
+          echo '$(inputs.params.event)' | yq -y . > ci-values.yaml
           echo "# CI template values:"
-          cat values-global.yaml
+          cat ci-values.yaml
           echo "# Rendered template:"
-          helm template . --values=values-global.yaml > rendered.yaml
+          helm template . --values=ci-values.yaml > rendered.yaml
           cat rendered.yaml
           echo "# Create configmap ci-context-$(inputs.params.uid)"
-          yq -y '.global.ci | with_entries(select(.key|contains("secrets")|not)) | {global: {ci: .}}' values-global.yaml > context
-          kubectl create configmap ci-context-$(inputs.params.uid) --from-file=context
+          kubectl create configmap ci-context-$(inputs.params.uid) --from-file=ci-values.yaml
     - name: deploy-user-pipeline
       image: eonpatapon/kapp
       command: ["kapp"]
