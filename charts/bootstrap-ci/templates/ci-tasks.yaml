@@ -3,6 +3,7 @@ kind: Task
 metadata:
   annotations:
     kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/pipelines"
+    kapp.k14s.io/disable-associated-resources-wait: ""
   name: ci-stage1
   namespace: tekton-pipelines
 spec:
@@ -64,6 +65,7 @@ kind: ClusterTask
 metadata:
   annotations:
     kapp.k14s.io/change-rule: "upsert after upserting tekton.dev/pipelines"
+    kapp.k14s.io/disable-associated-resources-wait: ""
   name: ci-stage2
   namespace: tekton-pipelines
 spec:
