@@ -13,6 +13,8 @@ spec:
         type: string
       - name: eventType
         type: string
+      - name: eventAction
+        type: string
       - name: repoName
         type: string
         description: Repository name
@@ -20,14 +22,21 @@ spec:
         type: string
         description: Repository branch
   steps:
-    - name: create-pipeline-ns
-      image: nixery.dev/shell/kubectl/yq/jq
+    - name: setup
+      image: nixery.dev/shell/kubectl/yq/jq/curl
       command: ["bash"]
       args:
         - "-ec"
         - |
           export RUN_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n1)
           export NAMESPACE=pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
+
+          if [ "$(inputs.params.eventType)" == "pull_request" ] && [ "$(inputs.params.eventAction)" == "closed" ]; then
+            echo "# Deleting namespace $NAMESPACE"
+            kubectl delete namespace $NAMESPACE || true
+            exit 0
+          fi
+
           echo "# Creating namespace $NAMESPACE"
           kubectl create namespace $NAMESPACE || true
           if [ "$(inputs.params.eventType)" == "pull_request" ]; then
@@ -49,16 +58,7 @@ spec:
           cat event.json secrets.json | jq -s 'add | {global: {ci: .}} * {global: {ci: {namespace: env.NAMESPACE, uid: env.RUN_ID}}}' > trigger.json
           echo "# Trigger user pipeline with event: "
           cat trigger.json
-    - name: trigger-pipeline
-      image: nixery.dev/curl
-      command: ["curl"]
-      args:
-        - -v
-        - -H
-        - "Content-Type: application/json"
-        - -d
-        - "@trigger.json"
-        - http://el-internal-tekton-ci:8080
+          curl -H "Content-Type: application/json" -d "@trigger.json" http://el-internal-tekton-ci:8080
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: ClusterTask

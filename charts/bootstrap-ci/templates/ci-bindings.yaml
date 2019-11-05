@@ -12,6 +12,8 @@ spec:
       value: $(body)
     - name: eventType
       value: $(body.eventType)
+    - name: eventAction
+      value: $(body.eventAction)
     - name: repoName
       value: $(body.repository.name)
     - name: repoBranch
