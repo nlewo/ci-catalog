@@ -1,0 +1,4 @@
+# The name of the pipelinerun to track
+pipelinerun: pipeline-run
+# The name of the secret containing the github token
+githubTokenSecretName: github-token
