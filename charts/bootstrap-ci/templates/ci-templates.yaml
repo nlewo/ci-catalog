@@ -9,13 +9,15 @@ spec:
   params:
     - name: event
     - name: eventType
+    - name: eventAction
     - name: repoName
     - name: repoBranch
+    - name: namespace
   resourcetemplates:
     - apiVersion: tekton.dev/v1alpha1
       kind: TaskRun
       metadata:
-        name: setup-$(params.repoName)-$(params.repoBranch)-$(uid)
+        name: setup-$(params.namespace)-$(uid)
         labels:
           generatedBy: "ci-trigger"
         namespace: tekton-pipelines
@@ -35,6 +37,8 @@ spec:
               value: $(params.repoName)
             - name: repoBranch
               value: $(params.repoBranch)
+            - name: namespace
+              value: $(params.namespace)
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: TriggerTemplate
@@ -56,7 +60,7 @@ spec:
     - apiVersion: tekton.dev/v1alpha1
       kind: TaskRun
       metadata:
-        name: apply-pipeline-$(params.repoName)-$(params.repoBranch)-$(params.uid)
+        name: apply-$(params.namespace)-$(params.uid)
         labels:
           generatedBy: "ci-trigger"
         namespace: $(params.namespace)

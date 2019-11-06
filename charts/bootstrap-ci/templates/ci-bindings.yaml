@@ -18,6 +18,8 @@ spec:
       value: $(body.repository.name)
     - name: repoBranch
       value: $(body.repository.branch)
+    - name: namespace
+      value: $(body.namespace)
 ---
 apiVersion: tekton.dev/v1alpha1
 kind: TriggerBinding

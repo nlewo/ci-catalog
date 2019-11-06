@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
         - name: validate
-          image: eonpatapon/ci-gh-interceptor:7cd892e11edf139c4952527908264abe2e9493a7
+          image: eonpatapon/ci-gh-interceptor:c15458efa217f3b58f985aab1854b96dd49b18cc
           env:
             - name: GITHUB_SECRET_TOKEN
               valueFrom:

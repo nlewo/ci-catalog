@@ -21,6 +21,9 @@ spec:
       - name: repoBranch
         type: string
         description: Repository branch
+      - name: namespace
+        type: string
+        description: Name of the namespace to use
   steps:
     - name: setup
       image: nixery.dev/shell/kubectl/yq/jq/curl
@@ -29,33 +32,31 @@ spec:
         - "-ec"
         - |
           export RUN_ID=$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 5 | head -n1)
-          export NAMESPACE=pipeline-$(inputs.params.repoName)-$(inputs.params.repoBranch)
-
           if [ "$(inputs.params.eventType)" == "pull_request" ] && [ "$(inputs.params.eventAction)" == "closed" ]; then
-            echo "# Deleting namespace $NAMESPACE"
-            kubectl delete namespace $NAMESPACE || true
+            echo "# Deleting namespace $(inputs.params.namespace)"
+            kubectl delete namespace $(inputs.params.namespace) || true
             exit 0
           fi
 
-          echo "# Creating namespace $NAMESPACE"
-          kubectl create namespace $NAMESPACE || true
+          echo "# Creating namespace $(inputs.params.namespace)"
+          kubectl create namespace $(inputs.params.namespace) || true
           if [ "$(inputs.params.eventType)" == "pull_request" ]; then
-            echo "# Creating rolebinding edit for $NAMESPACE"
+            echo "# Creating rolebinding edit for $(inputs.params.namespace)"
             kubectl create rolebinding pr-tekton-pipeline \
               --clusterrole=edit \
-              --group=system:serviceaccounts:$NAMESPACE \
-              --namespace=$NAMESPACE || true
+              --group=system:serviceaccounts:$(inputs.params.namespace) \
+              --namespace=$(inputs.params.namespace) || true
           else
-            echo "# Creating clusterrolebinding edit for $NAMESPACE"
+            echo "# Creating clusterrolebinding edit for $(inputs.params.namespace)"
             kubectl create clusterrolebinding tekton-pipeline \
               --clusterrole=edit \
-              --group=system:serviceaccounts:$NAMESPACE \
-              --namespace=$NAMESPACE || true
+              --group=system:serviceaccounts:$(inputs.params.namespace) \
+              --namespace=$(inputs.params.namespace) || true
           fi
           echo "# Fetching secrets from secrets-$(inputs.params.repoName) namespace"
           kubectl get -o json secrets -n secrets-$(inputs.params.repoName) | jq -s '.[].items | map(select(.kind == "Secret") | {"\(.metadata.name)": .data}) | add | {secrets: .}' > secrets.json
           echo '$(inputs.params.event)' > event.json
-          cat event.json secrets.json | jq -s 'add | {global: {ci: .}} * {global: {ci: {namespace: env.NAMESPACE, uid: env.RUN_ID}}}' > trigger.json
+          cat event.json secrets.json | jq -s 'add | {global: {ci: .}} * {global: {ci: {uid: env.RUN_ID}}}' > trigger.json
           echo "# Trigger user pipeline with event: "
           cat trigger.json
           curl -H "Content-Type: application/json" -d "@trigger.json" http://el-internal-tekton-ci:8080
