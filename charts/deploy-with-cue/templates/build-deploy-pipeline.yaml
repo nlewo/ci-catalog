@@ -1,0 +1,19 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Pipeline
+metadata:
+  namespace: {{ .Values.global.ci.namespace }}
+  name: deploy-with-cue-pipeline
+  annotations:
+    kapp.k14s.io/change-group: "ci/resources"
+spec:
+  resources:
+    - name: source-repo
+      type: git
+  tasks:
+    - name: deploy
+      taskRef:
+        name: deploy-with-cue
+      resources:
+        inputs:
+          - name: source
+            resource: source-repo
