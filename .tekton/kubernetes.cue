@@ -2,11 +2,12 @@ package config
 
 _ci revision : *"master" | string
 _ci namespace : *"default" | string
+_ci repository branch : *"master" | string
 
 _host: {
     base: "helm-serve-84-39-53-90.nip.io" 
-    if (_ci.namespace != "default") {address : "ns--" + _ci.namespace + "--" + base}
-    if (_ci.namespace == "default") {address : base}
+    if (_ci.repository.branch != "master") {address : "ns--" + _ci.namespace + "--" + base}
+    if (_ci.repository.branch == "master") {address : base}
 }
 
 probe = {
