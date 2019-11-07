@@ -1,5 +1,0 @@
-# The Cue package containing the Kubernetes configuration
-cuePackage: config
-# The path containing the Cue package
-# A related path in the git repository
-cuePath: .
