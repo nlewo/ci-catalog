@@ -1,10 +1,2 @@
-global:
-  ci:
-    uid: "12345"
-    namespace: "test2"
-    repository:
-      revision: "ci"
-      url: "https://github.com/nlewo/ci-catalog"
-
 deploy-with-cue:
   cuePath: .tekton

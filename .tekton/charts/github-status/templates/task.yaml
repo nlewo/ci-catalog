@@ -1,0 +1,45 @@
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  namespace: {{ .Values.global.ci.namespace }}
+  name: github-status
+  annotations:
+    kapp.k14s.io/change-group: "ci/resources"
+spec:
+  steps:
+    - name: status-updater
+      image: nixery.dev/shell/kubectl/yq/curl/cacert
+      command: ["bash"]
+      args:
+        - "-c"
+        - |
+          set -e
+          echo "Set status to 'pending' for commit {{ .Values.global.ci.repository.revision }} of the repository {{ .Values.global.ci.repository.fullName }}"
+          echo '{"state": "pending","target_url": "{{ .Values.global.ci.dahboardUrl }}","description": "A pipeline started!","context": "continuous-integration/tekton"}' > status.json
+          echo ""
+          curl -s --cacert /etc/ssl/certs/ca-bundle.crt -X POST -H "Authorization: token $(cat /var/secret/token)" -H 'Content-Type: application/json' https://api.github.com/repos/{{ .Values.global.ci.repository.fullName }}/statuses/{{ .Values.global.ci.repository.revision }} -d @status.json
+
+          echo "Waiting for all pipeline termination (in the namespace {{ .Values.global.ci.namespace }})"
+          while kubectl get -n {{ .Values.global.ci.namespace }} pipelineruns.tekton.dev -o yaml | yq -e '.items | map(.status.conditions[].status == "Unknown") | any'
+          do
+            sleep 1
+          done
+          FAILED=$(kubectl get -n {{ .Values.global.ci.namespace }} pipelineruns.tekton.dev -o yaml | yq -e '.items | map(.status.conditions[].reason) | map(select(. != "Succeeded")) | length')
+
+          if [ $FAILED == 0 ]
+          then
+            echo '{"state": "success","target_url": "{{ .Values.global.ci.dashboardUrl }}","description": "All pipelineruns succeeded!","context": "continuous-integration/tekton"}' > status.json
+          else
+            # TODO: add a message
+            echo '{"state": "failure","target_url": "{{ .Values.global.ci.dashboardUrl }}","description": "' $REASON ' pipelineruns failed","context": "continuous-integration/tekton"}' > status.json
+          fi
+          echo "Set status to:"
+          cat status.json
+          curl -s --cacert /etc/ssl/certs/ca-bundle.crt -X POST -H "Authorization: token $(cat /var/secret/token)" -H 'Content-Type: application/json' https://api.github.com/repos/{{ .Values.global.ci.repository.fullName }}/statuses/{{ .Values.global.ci.repository.revision }} -d @status.json            
+      volumeMounts:
+        - name: github-token
+          mountPath: /var/secret
+  volumes:
+    - name: github-token
+      secret:
+        secretName: {{ .Values.githubTokenSecretName }}

@@ -3,6 +3,12 @@ package config
 _ci revision : *"master" | string
 _ci namespace : *"default" | string
 
+_host: {
+    base: "helm-serve-84-39-53-90.nip.io" 
+    if (_ci.namespace != "default") {address : "ns--" + _ci.namespace + "--" + base}
+    if (_ci.namespace == "default") {address : base}
+}
+
 probe = {
 	httpGet: {
 		path: "/"
@@ -44,7 +50,7 @@ deployment = {
                                   helm init --client-only
                                   helm package *
                                   echo "Serving packages"
-                                  helm serve --address 0.0.0.0:8879
+                                  helm serve --address 0.0.0.0:8879 --url http://"\(_host.address)"
                                 """,
 			]
 		}]
@@ -76,9 +82,7 @@ ingress = {
 		annotations "kubernetes.io/ingress.class": "nginx"
 	}
 	spec rules: [{
-                _host: "helm-serve-84-39-53-90.nip.io"
-		if (_ci.namespace != "default") { host: "ns--" + _ci.namespace + "--" + _host } 
-		if (_ci.namespace == "default") { host: _host } 
+                host: _host.address
 		http paths: [{
 			backend: {
 				serviceName: "helm-serve"
