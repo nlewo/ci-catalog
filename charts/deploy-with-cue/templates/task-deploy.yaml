@@ -23,6 +23,7 @@ spec:
           echo "package {{ .Values.cuePackage }}" > /workspace/source/{{ .Values.cuePath }}/ci.cue
           echo '_ci revision : "$(inputs.resources.source.revision)"' >> /workspace/source/{{ .Values.cuePath }}/ci.cue
           echo '_ci namespace : "{{ .Values.global.ci.namespace }}"' >> /workspace/source/{{ .Values.cuePath }}/ci.cue
+          echo '_ci repository branch : "{{ .Values.global.ci.repository.branch }}"' >> /workspace/source/{{ .Values.cuePath }}/ci.cue
     - name: generate-config
       # Cue is not available in the channel used by nixery atm
       image: lewo/cue@sha256:b1d132d4eb0f4f6b9695346db9d43da81676ae3d8ecb5526dd11525d0d3f422b
