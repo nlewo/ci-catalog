@@ -1,0 +1,7 @@
+dependencies:
+- name: github-status
+  version: 0.1.0
+  repository: http://helm-serve-84-39-53-90.nip.io
+- name: deploy-with-cue
+  version: 0.1.0
+  repository: http://helm-serve-84-39-53-90.nip.io
