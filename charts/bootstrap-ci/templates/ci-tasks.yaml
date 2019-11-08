@@ -48,10 +48,9 @@ spec:
               --namespace=$(inputs.params.namespace) || true
           else
             echo "# Creating clusterrolebinding edit for $(inputs.params.namespace)"
-            kubectl create clusterrolebinding tekton-pipeline \
+            kubectl create clusterrolebinding tekton-pipeline-$(inputs.params.namespace) \
               --clusterrole=edit \
-              --group=system:serviceaccounts:$(inputs.params.namespace) \
-              --namespace=$(inputs.params.namespace) || true
+              --group=system:serviceaccounts:$(inputs.params.namespace) || true
           fi
           echo "# Fetching secrets from secrets-$(inputs.params.repoName) namespace"
           kubectl get -o json secrets -n secrets-$(inputs.params.repoName) | jq -s '.[].items | map(select(.kind == "Secret") | {"\(.metadata.name)": .data}) | add | {secrets: .}' > secrets.json
