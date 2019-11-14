@@ -52,6 +52,23 @@ spec:
               --clusterrole=edit \
               --group=system:serviceaccounts:$(inputs.params.namespace) || true
           fi
+
+          echo "# Copying secrets from secrets-$(inputs.params.repoName) namespace to $(inputs.params.namespace) namespace"
+          kubectl get secrets -n secrets-$(inputs.params.repoName) -o json | jq -s '.[].items[] | select(.metadata.name | startswith("default-token") | not) | {"apiVersion": .apiVersion, "data": .data, "kind": .kind, "metadata": {"namespace": "$(inputs.params.namespace)", "name": .metadata.name, "annotations": .metadata.annotations}, "type": .type}' | kubectl apply -f -
+
+          echo "# Creating SA for stage2"
+          cat <<EOF | kubectl apply -f -
+          {
+            "apiVersion": "v1",
+            "kind": "ServiceAccount",
+            "metadata": {
+              "name": "ci",
+              "namespace": "$(inputs.params.namespace)"
+            },
+            "secrets": $(kubectl get secrets -n secrets-$(inputs.params.repoName) -o json | jq -s '.[].items[] | select(.metadata.name | startswith("default-token") | not) | {"name": .metadata.name}' | jq -sc .)
+          }
+          EOF
+
           echo "# Fetching secrets from secrets-$(inputs.params.repoName) namespace"
           kubectl get -o json secrets -n secrets-$(inputs.params.repoName) | jq -s '.[].items | map(select(.kind == "Secret") | {"\(.metadata.name)": .data}) | add | {secrets: .}' > secrets.json
           echo '$(inputs.params.event)' > event.json
@@ -94,8 +111,6 @@ spec:
           echo "# Rendered template:"
           helm template . --values=ci-values.yaml > rendered.yaml
           cat rendered.yaml
-          echo "# Create configmap ci-context-$(inputs.params.uid)"
-          kubectl create configmap ci-context-$(inputs.params.uid) --from-file=ci-values.yaml
     - name: deploy-user-pipeline
       image: eonpatapon/kapp
       command: ["kapp"]
