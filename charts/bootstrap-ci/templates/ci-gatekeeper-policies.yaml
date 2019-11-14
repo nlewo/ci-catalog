@@ -52,6 +52,15 @@ spec:
         kinds: ["Namespace", "Role"]
       - apiGroups: ["rbac.authorization.k8s.io"]
         kinds: ["RoleBinding"]
+      - apiGroups: ["tekton.dev"]
+        kinds:
+          - Task
+          - ClusterTask
+          - TaskRun
+          - PipelineRun
+          - Pipeline
+          - PipelineResource
+          - Condition
 ---
 apiVersion: config.gatekeeper.sh/v1alpha1
 kind: Config

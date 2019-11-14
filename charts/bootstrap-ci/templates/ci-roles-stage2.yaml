@@ -10,6 +10,8 @@ rules:
   resources:
   - namespaces
   - serviceaccounts
+  - configmaps
+  - secrets
   verbs:
   - get
   - list
@@ -19,21 +21,24 @@ rules:
   - patch
   - watch
 - apiGroups:
-  - rbac.authorization.k8s.io
+  - ""
   resources:
-  - rolebindings
+  - secrets
   verbs:
   - get
   - list
-  - create
+  - watch
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
+  - rolebindings
   - clusterrolebindings
   verbs:
   - get
   - list
   - create
+  - update
+  - patch
 - apiGroups:
     - rbac.authorization.k8s.io
   resources:
@@ -44,4 +49,24 @@ rules:
     - admin
     - edit
     - view
+- apiGroups:
+  - tekton.dev
+  resources:
+  - tasks
+  - clustertasks
+  - taskruns
+  - pipelines
+  - pipelineruns
+  - pipelineresources
+  - conditions
+  - taskruns/finalizers
+  - pipelineruns/finalizers
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
 ---
