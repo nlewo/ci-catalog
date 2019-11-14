@@ -15,21 +15,28 @@ spec:
       rego: |
         package ciRules
 
+        saObject := sa {
+          s := split(input.review.userInfo.username, ":")
+          s[0] == "system"
+          s[1] == "serviceaccount"
+          ns = s[2]
+          saName = s[3]
+          sa = data.inventory.namespace[ns]["v1"]["ServiceAccount"][saName]
+        }
+
         violation[{"msg": msg}] {
           input.review.object.kind == "Namespace"
-          s := split(input.review.userInfo.username, ":")
-          saName := s[3]
-          startswith(saName, "ci-")
+          saObject.metadata.annotations["ci/superuser"] == "false"
+          saName := saObject.metadata.name
           saName != input.review.object.metadata.name
           msg := sprintf("The CI service account \"%v\" is only allowed to create a namespace named \"%v\"", [saName, saName])
         }
 
         violation[{"msg": msg}] {
-          s := split(input.review.userInfo.username, ":")
-          saName := s[3]
-          startswith(saName, "ci-")
           kind := input.review.object.kind
           kind != "Namespace"
+          saObject.metadata.annotations["ci/superuser"] == "false"
+          saName := saObject.metadata.name
           saName != input.review.object.metadata.namespace
           msg := sprintf("The CI service account \"%v\" is only allowed to create \"%v\" in the namespace \"%v\"", [saName, kind, saName])
         }
@@ -45,3 +52,15 @@ spec:
         kinds: ["Namespace", "Role"]
       - apiGroups: ["rbac.authorization.k8s.io"]
         kinds: ["RoleBinding"]
+---
+apiVersion: config.gatekeeper.sh/v1alpha1
+kind: Config
+metadata:
+  name: config
+  namespace: "gatekeeper-system"
+spec:
+  sync:
+    syncOnly:
+      - group: ""
+        version: "v1"
+        kind: "ServiceAccount"
