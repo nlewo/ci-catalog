@@ -1,0 +1,98 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stargate-github-secret
+  namespace: tekton-pipelines
+type: Opaque
+stringData:
+  token: "{{ .Values.stargate.githubSecret }}"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: stargate-gitlab-secret
+  namespace: tekton-pipelines
+type: Opaque
+stringData:
+  token: "{{ .Values.stargate.gitlabToken }}"
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  labels:
+    type: app
+  name: stargate
+  namespace: tekton-pipelines
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stargate
+  template:
+    metadata:
+      labels:
+        app: stargate
+    spec:
+      serviceAccountName: tekton-ci-admin
+      containers:
+        - name: stargate
+          image: {{ .Values.stargate.image }}
+          env:
+            - name: GITHUB_SECRET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: stargate-github-secret
+                  key: token
+            - name: GITLAB_SECRET_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: stargate-gitlab-secret
+                  key: token
+            - name: STARGATE_MODULES_PATH
+              value: /modules
+            - name: STARGATE_DEBUG
+              value: "1"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: stargate-modules
+              mountPath: /modules
+      volumes:
+        - name: stargate-modules
+          configMap:
+            name: stargate-modules
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    type: app
+    app: stargate
+  name: stargate
+  namespace: tekton-pipelines
+spec:
+  ports:
+  - port: 8080
+  selector:
+    app: stargate
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: stargate
+  namespace: tekton-pipelines
+  annotations:
+    kubernetes.io/ingress.class: nginx
+spec:
+  rules:
+    - host: {{ .Values.stargate.webhookHost }}
+      http:
+        paths:
+          - path: {{ .Values.stargate.webhookPath }}
+            backend:
+              serviceName: stargate
+              servicePort: 8080
+          - path: /gk
+            backend:
+              serviceName: stargate
+              servicePort: 8080

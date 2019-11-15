@@ -65,6 +65,7 @@ spec:
           generatedBy: "ci-trigger"
         namespace: $(params.namespace)
       spec:
+        serviceAccount: ci
         taskRef:
           name: ci-stage2
           kind: ClusterTask

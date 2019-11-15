@@ -1,0 +1,104 @@
+apiVersion: v1
+data:
+  gk.rego: "package gk\n\nevent = e {\n  input.headers[\"X-Github-Event\"][_] = \"pull_request\"\n\trepo
+    = lower(input.payload.repository.name)\n\te := {\n\t\t\"eventType\": \"pull_request\",\n
+    \       \"eventAction\": input.payload.action,\n\t\t\"repository\": {\n            \"id\":
+    sprintf(\"pr-%d\", [input.payload.pull_request.number]),\n\t\t\t\"name\": repo,\n\t\t\t\"url\":
+    input.payload.pull_request.head.repo.clone_url,\n\t\t\t\"revision\": input.payload.pull_request.head.sha,\n\t
+    \       \"branch\": input.payload.pull_request.head.ref,\n\t\t\t\"fullName\":
+    input.payload.repository.full_name,\n\t\t}\n  }\n}\n\nevent = e {\n  input.headers[\"X-Github-Event\"][_]
+    = \"push\"\n\trepo = lower(input.payload.repository.name)\n\tbranch = trim_prefix(input.payload.ref,
+    \"refs/heads/\")\n\te := {\n\t\t\"eventType\": \"push\",\n\t\t\"eventAction\":
+    \"push\",\n\t\t\"repository\": {\n            \"id\": branch,\n\t\t\t\"name\":
+    repo,\n\t\t\t\"url\": input.payload.repository.clone_url,\n\t\t\t\"revision\":
+    input.payload.head_commit.id,\n\t\t\t\"branch\": branch,\n\t\t\t\"fullName\":
+    input.payload.repository.full_name,\n\t\t}\n  }\n}\n\ndefault run_stage1 = false\nrun_stage1
+    {\n\tevent.eventType = \"pull_request\"\n\tevent.eventAction = \"opened\"\n}\nrun_stage1
+    {\n\tevent.eventType = \"pull_request\"\n\tevent.eventAction = \"synchronized\"
+    # github\n}\nrun_stage1 {\n\tevent.eventType = \"push\"\n\tevent.repository.branch
+    = \"master\"\n}\n\ndefault superuser = false\nsuperuser {\n\tevent.eventType =
+    \"push\"\n\tevent.repository.branch = \"master\"\n}\n\ndefault t = false\nresources[r]
+    {\n\trun_stage1\n    saName = sprintf(\"ci-%s-%s\", [event.repository.name, event.repository.id])\n
+    \   roleName = sprintf(\"ci-role-%s-%s\", [event.repository.name, event.repository.id])\n
+    \   taskName = sprintf(\"ci-stage2-%s-%s-\", [event.repository.name, event.repository.id])\n\tr
+    := [\n    {\n      \"apiVersion\": \"v1\",\n      \"kind\": \"ServiceAccount\",\n
+    \     \"metadata\": {\n        \"name\": saName,\n        \"namespace\": \"tekton-pipelines\",\n
+    \       \"annotations\": {\n          \"ci/superuser\": sprintf(\"%s\", [superuser])\n
+    \       }\n      }\n    },\n    {\n      \"apiVersion\": \"rbac.authorization.k8s.io/v1beta1\",\n
+    \     \"kind\": \"ClusterRoleBinding\",\n      \"metadata\": {\n        \"name\":
+    roleName,\n      },\n      \"roleRef\": {\n        \"apiGroup\": \"rbac.authorization.k8s.io\",\n
+    \       \"kind\": \"ClusterRole\",\n        \"name\": \"tekton-ci-stage2\"\n      },\n
+    \     \"subjects\": [\n        {\n          \"kind\": \"ServiceAccount\",\n          \"name\":
+    saName,\n          \"namespace\": \"tekton-pipelines\"\n        }\n      ]\n    },\n
+    \   {\n      \"apiVersion\": \"tekton.dev/v1alpha1\",\n      \"kind\": \"TaskRun\",\n
+    \     \"metadata\": {\n        \"generateName\": taskName,\n        \"namespace\":
+    \"tekton-pipelines\"\n      },\n      \"spec\": {\n        \"serviceAccount\":
+    saName,\n        \"taskRef\": {\n          \"name\": \"ci-stage2-ng\"\n        },\n
+    \       \"inputs\": {\n          \"params\": [\n            { \"name\": \"event\",
+    \"value\": json.marshal(event) },\n            { \"name\": \"repoName\", \"value\":
+    event.repository.name },\n            { \"name\": \"repoID\", \"value\": event.repository.id
+    }\n          ],\n          \"resources\": [\n            {\n              \"name\":
+    \"project-repo\",\n              \"resourceSpec\": {\n                \"type\":
+    \"git\",\n                \"params\": [\n                  {\n                    \"name\":
+    \"url\",\n                    \"value\": event.repository.url\n                  },\n
+    \                 {\n                    \"name\": \"revision\",\n                    \"value\":
+    event.repository.revision\n                  }\n                ]\n              }\n
+    \           }\n          ]\n        }\n      }\n    }\n  ]\n}\n"
+  webhooks.rego: "package webhooks\n\nsanitize_branch(branch) = b {\n  b := replace(lower(branch),
+    \"/\", \"-\")\n}\n\ndeleteNSTask := {\n  \"apiVersion\": \"tekton.dev/v1alpha1\",\n
+    \ \"kind\": \"TaskRun\",\n  \"metadata\": {\n    \"generateName\": sprintf(\"delete-ns-%s\",
+    [event.namespace]),\n    \"namespace\": \"tekton-pipelines\"\n  },\n  \"spec\":
+    {\n    \"serviceAccountName\": \"tekton-ci-admin\",\n    \"taskSpec\": {\n      \"steps\":
+    [\n        {\n          \"name\": \"delete-namespace\",\n          \"image\":
+    \"nixery.dev/kubectl\",\n          \"command\": [\"kubectl\"],\n          \"args\":
+    [\"delete\", \"namespace\", event.namespace],\n        }\n      ],\n    },\n  }\n}\n\nstage1Task
+    := {\n\t\"apiVersion\": \"tekton.dev/v1alpha1\",\n\t\"kind\": \"TaskRun\",\n\t\"metadata\":
+    {\n\t\t\"generateName\": sprintf(\"setup-%s-\", [event.namespace]),\n\t\t\"namespace\":
+    \"tekton-pipelines\",\n\t\t\"labels\": {\n\t\t\t\"stargate/task\": \"stage1\",\n
+    \     \"tekton.dev/project\": event.repository.name,\n      \"tekton.dev/branch\":
+    event.repository.branch,\n\t\t},\n\t},\n\t\"spec\": {\n\t\t\"serviceAccountName\":
+    \"tekton-ci-admin\",\n\t\t\"taskRef\": {\n\t\t\t\"name\": \"ci-stage1\"\n\t\t},\n\t\t\"inputs\":
+    {\n\t\t\t\"params\": [\n\t\t\t\t{\"name\": \"event\", \"value\": json.marshal(event)},\n\t\t\t\t{\"name\":
+    \"eventType\", \"value\": event.eventType},\n\t\t\t\t{\"name\": \"eventAction\",
+    \"value\": event.eventAction},\n\t\t\t\t{\"name\": \"repoName\", \"value\": event.repository.name},\n\t\t\t\t{\"name\":
+    \"repoBranch\", \"value\": event.repository.branch},\n\t\t\t\t{\"name\": \"namespace\",
+    \"value\": event.namespace},\n\t\t\t]\n\t\t}\n\t}\n}\n\nevent = e {\n  input.headers[\"X-Github-Event\"][_]
+    = \"pull_request\"\n\trepo = lower(input.payload.repository.name)\n\tbranch =
+    sanitize_branch(input.payload.pull_request.head.ref)\n\tnamespace = sprintf(\"pipeline-%s-%s\",
+    [repo, branch])\n\te := {\n\t\t\"eventType\": \"pull_request\",\n    \"eventAction\":
+    input.payload.action,\n    \"namespace\": namespace,\n\t\t\"repository\": {\n\t\t\t\"name\":
+    repo,\n\t\t\t\"url\": input.payload.pull_request.head.repo.clone_url,\n\t\t\t\"revision\":
+    input.payload.pull_request.head.sha,\n\t\t\t\"branch\": branch,\n\t\t\t\"fullName\":
+    input.payload.repository.full_name,\n\t\t}\n  }\n}\n\nevent = e {\n  input.headers[\"X-Github-Event\"][_]
+    = \"push\"\n\trepo = lower(input.payload.repository.name)\n\tbranch = sanitize_branch(trim_prefix(input.payload.ref,
+    \"refs/heads/\"))\n\tnamespace = sprintf(\"pipeline-%s-%s\", [repo, branch])\n\te
+    := {\n\t\t\"eventType\": \"push\",\n\t\t\"eventAction\": \"push\",\n    \"namespace\":
+    namespace,\n\t\t\"repository\": {\n\t\t\t\"name\": repo,\n\t\t\t\"url\": input.payload.repository.clone_url,\n\t\t\t\"revision\":
+    input.payload.head_commit.id,\n\t\t\t\"branch\": branch,\n\t\t\t\"fullName\":
+    input.payload.repository.full_name,\n\t\t}\n  }\n}\n\nevent = e {\n  input.headers[\"X-Gitlab-Event\"][_]
+    = \"Push Hook\"\n\trepo = lower(input.payload.project.name)\n\tbranch = sanitize_branch(trim_prefix(input.payload.ref,
+    \"refs/heads/\"))\n\tnamespace = sprintf(\"pipeline-%s-%s\", [repo, branch])\n
+    \ e := {\n    \"eventType\": \"push\",\n    \"eventAction\": \"push\",\n    \"namespace\":
+    namespace,\n    \"repository\": {\n      \"name\": repo,\n      \"url\": input.payload.repository.git_http_url,\n
+    \     \"revision\": input.payload.checkout_sha,\n      \"branch\": branch,\n      \"fullName\":
+    input.payload.project.path_with_namespace\n    }\n  }\n}\n\nevent = e {\n  input.headers[\"X-Gitlab-Event\"][_]
+    = \"Merge Request Hook\"\n\trepo = lower(input.payload.project.name)\n\tbranch
+    = sanitize_branch(input.payload.object_attributes.source_branch)\n\tnamespace
+    = sprintf(\"pipeline-%s-%s\", [repo, branch])\n  e := {\n    \"eventType\": \"pull_request\",\n
+    \   \"eventAction\": input.payload.object_attributes.state,\n    \"namespace\":
+    namespace,\n    \"repository\": {\n      \"name\": repo,\n      \"url\": input.payload.object_attributes.source.git_http_url,\n
+    \     \"revision\": input.payload.object_attributes.last_commit.id,\n      \"branch\":
+    branch,\n      \"fullName\": input.payload.object_attributes.source.path_with_namespace\n
+    \   }\n  }\n}\n\n\ndefault run_stage1 = false\nrun_stage1 {\n\tevent.eventType
+    = \"pull_request\"\n\tevent.eventAction = \"opened\"\n}\nrun_stage1 {\n\tevent.eventType
+    = \"pull_request\"\n\tevent.eventAction = \"updated\" # gitlab\n}\nrun_stage1
+    {\n\tevent.eventType = \"pull_request\"\n\tevent.eventAction = \"synchronized\"
+    # github\n}\nrun_stage1 {\n\tevent.eventType = \"push\"\n\tevent.repository.branch
+    = \"master\"\n}\n\ndefault t = false\nresources[t] {\n\trun_stage1\n\tt := stage1Task\n}\n\nresources[t]
+    {\n\tevent.eventType = \"pull_request\"\n\tevent.eventAction = \"closed\"\n\tt
+    := deleteNSTask\n}\n"
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  name: stargate-modules
+  namespace: tekton-pipelines

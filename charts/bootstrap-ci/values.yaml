@@ -1,3 +1,9 @@
+stargate:
+  image: eonpatapon/stargate-44fb639d0f8662006ac8589da0d5db3d@sha256:9082ec4366b95488c4b3cd6ed0d988b45b759e6d9c7d8ca32b3c4551d9007819
+  webhookHost: stargate-84-39-53-90.nip.io
+  webhookPath: /webhooks
+  githubSecret: 12345 # secret for github webhooks
+  gitlabToken: 12345 # token for gitlab webhooks
 github:
   webhookSecret: 12345 # secret for github webhooks
   webhookHost: github-events-84-39-53-90.nip.io
