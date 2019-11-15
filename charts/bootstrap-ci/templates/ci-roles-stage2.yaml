@@ -1,0 +1,72 @@
+# This role is used by the stage2 of the CI. It is allowed to create
+# role, namespace and rolebinding.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: tekton-ci-stage2
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  - serviceaccounts
+  - configmaps
+  - secrets
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  - clusterrolebindings
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - patch
+- apiGroups:
+    - rbac.authorization.k8s.io
+  resources:
+    - clusterroles
+  verbs:
+    - bind
+  resourceNames:
+    - admin
+    - edit
+    - view
+- apiGroups:
+  - tekton.dev
+  resources:
+  - tasks
+  - clustertasks
+  - taskruns
+  - pipelines
+  - pipelineruns
+  - pipelineresources
+  - conditions
+  - taskruns/finalizers
+  - pipelineruns/finalizers
+  verbs:
+  - get
+  - list
+  - create
+  - update
+  - delete
+  - patch
+  - watch
+---
