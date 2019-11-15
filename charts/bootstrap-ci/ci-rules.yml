@@ -1,0 +1,20 @@
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: ciRules
+metadata:
+  name: cirules
+spec:
+  match:
+    kinds:
+      - apiGroups: [""]
+        kinds: ["Namespace", "Role"]
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        kinds: ["RoleBinding"]
+      - apiGroups: ["tekton.dev"]
+        kinds:
+          - Task
+          - ClusterTask
+          - TaskRun
+          - PipelineRun
+          - Pipeline
+          - PipelineResource
+          - Condition
