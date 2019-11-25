@@ -1,0 +1,26 @@
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineRun
+metadata:
+  namespace: {{ .Values.global.ci.namespace }}
+  generateName: build-push-dockerfile-{{ .Values.global.ci.repository.name }}-{{ .Values.global.ci.repository.id }}-
+  annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting ci/resources"
+spec:
+  serviceAccount: docker
+  pipelineRef:
+    name: build-push-dockerfile
+  resources:
+    - name: source
+      resourceSpec:
+        type: git
+        params:
+          - name: revision
+            value: {{ .Values.global.ci.repository.revision }}
+          - name: url
+            value: {{ .Values.global.ci.repository.url }}
+    - name: image
+      resourceSpec:
+        type: image
+        params:
+          - name: url
+            value: {{ .Values.image.name }}
