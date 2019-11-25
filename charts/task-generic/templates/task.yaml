@@ -1,0 +1,46 @@
+{{ if (or (eq .Values.trigger.event "all") (eq .Values.trigger.event .Values.global.ci.eventType)) }}
+---
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  namespace: {{ .Values.global.ci.namespace }}
+  generateName: {{ .Values.name }}-
+  annotations:
+    kapp.k14s.io/change-rule: "upsert after upserting ci/resources"
+    kapp.k14s.io/update-strategy: "always-replace"
+    kapp.k14s.io/disable-wait: ""
+spec:
+  taskRef:
+    name: {{ .Values.name }}
+  inputs:
+    resources:
+      - name: source
+        resourceSpec:
+          type: git
+          params:
+          - name: revision
+            value: {{ .Values.global.ci.repository.revision }}
+          - name: url
+            value: {{ .Values.global.ci.repository.url }}
+---
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  namespace: {{ .Values.global.ci.namespace }}
+  name: {{ .Values.name }}
+  annotations:
+    kapp.k14s.io/change-group: "ci/resources"
+    # To ignore failed taskruns when kapp redeploy this task
+    kapp.k14s.io/disable-associated-resources-wait: ""
+spec:
+  inputs:
+    resources:
+      - name: source
+        type: git
+  stepTemplate:
+    workingDir: /workspace/source
+  steps:
+{{- with .Values.steps }}
+{{ toYaml . | indent 4 }}
+{{- end }}
+{{ end }}
